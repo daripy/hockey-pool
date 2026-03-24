@@ -353,11 +353,17 @@ export default function App(){
   };
 
   const tabs=[
-    {key:"bracket",label:"Submit Picks"},
+    ...(!started?[{key:"bracket",label:"Submit Picks"}]:[]),
+    ...(!started?[{key:"edit",label:"Edit Bracket"}]:[]),
     {key:"standings",label:"Standings"},
     {key:"rules",label:"Rules"},
     ...(isAdmin?[{key:"manage",label:"Admin"}]:[]),
   ];
+
+  // Auto-switch away from bracket/edit if tournament starts
+  useEffect(()=>{
+    if(started&&(view==="bracket"||view==="edit"))setView("standings");
+  },[started,view]);
 
   return(
     <div className="program-bg" style={{minHeight:"100vh",color:C.text,fontFamily:FONTS.body}}>
@@ -428,6 +434,7 @@ export default function App(){
           </div>
         )}
         {!loading&&view==="bracket"&&<PickForm onSubmit={handleSubmit} entries={entries} started={started} results={results}/>}
+        {!loading&&view==="edit"&&<EditBracket onSubmit={handleSubmit} entries={entries} started={started} results={results}/>}
         {!loading&&view==="standings"&&<Standings entries={entries} results={results}/>}
         {!loading&&view==="rules"&&<Rules/>}
         {!loading&&view==="manage"&&isAdmin&&<Manage entries={entries} onDelete={handleDelete} onRefresh={refresh}/>}
@@ -454,62 +461,34 @@ function PickForm({onSubmit,entries,started,results}){
   const[newPin,setNewPin]=useState(null);
   const[saving,setSaving]=useState(false);
   const[chosenPin,setChosenPin]=useState("");
-
-  // Edit / PIN flow
-  const[editMode,setEditMode]=useState(false);  // PIN entry screen visible
-  const[editTarget,setEditTarget]=useState("");  // name selected to edit
-  const[pinInput,setPinInput]=useState("");
-  const[pinError,setPinError]=useState(false);
-  const[verifying,setVerifying]=useState(false);
+  const[showPinPrompt,setShowPinPrompt]=useState(false);
 
   const doPick=(g,team)=>setPicks(cascade({...picks,[g]:team}));
-
-  const handleSelectEdit=e=>{
-    const n=e.target.value;
-    setEditTarget(n);
-    if(n){setEditMode(true);setPinInput("");setPinError(false);}
-    else setEditMode(false);
-  };
-
-  const verifyPin=async()=>{
-    if(pinInput.length!==4){setPinError(true);return;}
-    setVerifying(true);
-    const entry=await verifyEntryPin(editTarget,pinInput);
-    setVerifying(false);
-    if(!entry){setPinError(true);return;}
-    setName(entry.name);
-    setEmail(entry.email||"");
-    setTiebreak(entry.tiebreak?String(entry.tiebreak):"");
-    setPicks(entry.picks);
-    setEditMode(false);
-    setPinError(false);
-  };
 
   const submit=async()=>{
     if(!name.trim())return alert("Please enter a bracket name.");
     if(!email.trim())return alert("Please enter your email.");
     if(!isComplete(picks))return alert("Please fill out all 15 picks.");
     if(!tiebreak)return alert("Please enter a tiebreaker (total goals in both semifinals + championship).");
-    if(!editTarget&&chosenPin.length!==4)return alert("Please choose a 4-digit PIN.");
-    const pin=editTarget?pinInput:chosenPin;
+    if(chosenPin.length!==4)return alert("Please choose a 4-digit PIN.");
+    setShowPinPrompt(false);
     setSaving(true);
-    await onSubmit({name:name.trim(),email:email.trim(),tiebreak:Number(tiebreak),picks,submittedAt:new Date().toISOString(),pin});
+    await onSubmit({name:name.trim(),email:email.trim(),tiebreak:Number(tiebreak),picks,submittedAt:new Date().toISOString(),pin:chosenPin});
     setSaving(false);
     setSubmitted(true);
   };
 
   const reset=()=>{
     setName("");setEmail("");setTiebreak("");setPicks({});
-    setSubmitted(false);setNewPin(null);setEditMode(false);
-    setPinInput("");setPinError(false);setEditTarget("");setChosenPin("");
+    setSubmitted(false);setNewPin(null);setChosenPin("");setShowPinPrompt(false);
   };
 
   /* ── Success screen ── */
   if(submitted) return(
-    <Card style={{textAlign:"center",padding:"60px 24px",borderTop:`4px solid ${editTarget?C.navy:C.red}`}}>
+    <Card style={{textAlign:"center",padding:"60px 24px",borderTop:`4px solid ${C.red}`}}>
       <div style={{fontSize:56,marginBottom:16}}>🎉</div>
       <div style={{fontFamily:FONTS.display,fontSize:52,color:C.navy,letterSpacing:"4px",marginBottom:8}}>
-        {editTarget?"PICKS UPDATED":"BRACKET LOCKED IN"}
+        BRACKET LOCKED IN
       </div>
       <p style={{color:C.textMid,fontSize:16,marginBottom:4}}>
         <strong style={{color:C.text}}>{name}</strong>'s picks are saved.
@@ -520,73 +499,69 @@ function PickForm({onSubmit,entries,started,results}){
       <p style={{color:C.textMid,fontSize:15,marginBottom:36}}>
         Tiebreaker: <strong style={{color:C.navy,fontFamily:FONTS.mono}}>{tiebreak} total goals</strong>
       </p>
-      {!editTarget&&(
-        <div style={{
-          display:"inline-block",margin:"0 auto 36px",
-          padding:"28px 48px",background:C.goldBg,
-          border:`3px solid ${C.gold}`,borderRadius:1,
-          boxShadow:"4px 4px 0 rgba(184,108,16,0.18)",
-        }}>
-          <div style={{fontFamily:FONTS.display,fontSize:28,color:C.gold,letterSpacing:"3px",marginBottom:10}}>
-            COMPLETE YOUR ENTRY
-          </div>
-          <div style={{fontFamily:FONTS.body,fontSize:16,color:C.text,marginBottom:8,lineHeight:1.5}}>
-            Send <strong style={{fontSize:20}}>$10</strong> via Venmo to
-          </div>
-          <div style={{fontFamily:FONTS.mono,fontSize:28,color:C.navy,fontWeight:700,letterSpacing:2,marginBottom:8}}>
-            @drew-pynchon
-          </div>
-          <div style={{fontFamily:FONTS.body,fontSize:12,color:C.textLight,letterSpacing:1}}>
-            YOUR ENTRY IS NOT OFFICIAL UNTIL PAYMENT IS RECEIVED
-          </div>
+      <div style={{
+        display:"inline-block",margin:"0 auto 36px",
+        padding:"28px 48px",background:C.goldBg,
+        border:`3px solid ${C.gold}`,borderRadius:1,
+        boxShadow:"4px 4px 0 rgba(184,108,16,0.18)",
+      }}>
+        <div style={{fontFamily:FONTS.display,fontSize:28,color:C.gold,letterSpacing:"3px",marginBottom:10}}>
+          COMPLETE YOUR ENTRY
         </div>
-      )}
-      <div style={{marginTop:editTarget?0:8}}>
-        <p style={{fontSize:12,color:C.textMid,marginBottom:12,fontFamily:FONTS.mono,letterSpacing:1}}>
-          Remember your 4-digit PIN to edit your picks later
-        </p>
+        <div style={{fontFamily:FONTS.body,fontSize:16,color:C.text,marginBottom:8,lineHeight:1.5}}>
+          Send <strong style={{fontSize:20}}>$10</strong> via Venmo to
+        </div>
+        <div style={{fontFamily:FONTS.mono,fontSize:28,color:C.navy,fontWeight:700,letterSpacing:2,marginBottom:8}}>
+          @drew-pynchon
+        </div>
+        <div style={{fontFamily:FONTS.body,fontSize:12,color:C.textLight,letterSpacing:1}}>
+          YOUR ENTRY IS NOT OFFICIAL UNTIL PAYMENT IS RECEIVED
+        </div>
+      </div>
+      <div style={{
+        display:"inline-block",margin:"0 auto 24px",
+        padding:"20px 40px",background:C.navyBg,
+        border:`2px solid ${C.navyBorder}`,borderRadius:1,
+      }}>
+        <div style={{fontFamily:FONTS.display,fontSize:20,color:C.navy,letterSpacing:"2px",marginBottom:8}}>YOUR PIN</div>
+        <div style={{fontFamily:FONTS.mono,fontSize:36,color:C.navy,fontWeight:700,letterSpacing:8}}>{chosenPin}</div>
+        <div style={{fontFamily:FONTS.body,fontSize:11,color:C.textMid,marginTop:8,letterSpacing:1}}>
+          SAVE THIS — YOU'LL NEED IT TO EDIT YOUR PICKS
+        </div>
+      </div>
+      <div style={{marginTop:8}}>
         <button onClick={reset} style={primaryBtn}>SUBMIT ANOTHER BRACKET</button>
       </div>
     </Card>
   );
 
-  /* ── PIN entry screen ── */
-  if(editMode) return(
+  /* ── Choose PIN prompt (new entries) ── */
+  if(showPinPrompt) return(
     <div style={{animation:"fadeIn 0.2s ease"}}>
-      <Card style={{maxWidth:400,margin:"40px auto",padding:"40px 32px",textAlign:"center",borderTop:`4px solid ${C.navy}`}}>
+      <Card style={{maxWidth:400,margin:"40px auto",padding:"40px 32px",textAlign:"center",borderTop:`4px solid ${C.red}`}}>
         <div style={{fontSize:40,marginBottom:16}}>🔐</div>
-        <div style={{fontFamily:FONTS.display,fontSize:30,color:C.navy,letterSpacing:"3px",marginBottom:6}}>ENTER YOUR PIN</div>
+        <div style={{fontFamily:FONTS.display,fontSize:30,color:C.navy,letterSpacing:"3px",marginBottom:6}}>CHOOSE A PIN</div>
         <p style={{color:C.textMid,fontSize:14,marginBottom:24,lineHeight:1.5}}>
-          Enter the 4-digit PIN you received when you submitted{" "}
-          <strong style={{color:C.text}}>{editTarget}</strong>'s bracket.
+          Pick a 4-digit PIN to protect your bracket. You'll need this to edit your picks later.
         </p>
         <input
           className="pin-input"
-          value={pinInput}
-          onChange={e=>{setPinInput(e.target.value.replace(/\D/g,"").slice(0,4));setPinError(false);}}
-          placeholder="····"
+          value={chosenPin}
+          onChange={e=>{setChosenPin(e.target.value.replace(/\D/g,"").slice(0,4));}}
           maxLength={4}
           autoFocus
-          onKeyDown={e=>e.key==="Enter"&&pinInput.length===4&&verifyPin()}
+          onKeyDown={e=>e.key==="Enter"&&chosenPin.length===4&&submit()}
         />
-        {pinError&&(
-          <p style={{color:C.red,fontSize:13,fontWeight:700,letterSpacing:1,marginTop:8,marginBottom:0}}>
-            Incorrect PIN — try again.
-          </p>
-        )}
         <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:20}}>
-          <button onClick={verifyPin} disabled={pinInput.length!==4||verifying} style={{
-            ...navyBtn,
-            opacity:pinInput.length!==4||verifying?0.4:1,
-            cursor:pinInput.length!==4||verifying?"not-allowed":"pointer",
+          <button onClick={submit} disabled={chosenPin.length!==4||saving} style={{
+            ...primaryBtn,
+            opacity:chosenPin.length!==4||saving?0.4:1,
+            cursor:chosenPin.length!==4||saving?"not-allowed":"pointer",
           }}>
-            {verifying?"CHECKING…":"UNLOCK PICKS"}
+            {saving?"SAVING…":"SUBMIT BRACKET"}
           </button>
-          <button onClick={()=>{setEditMode(false);setEditTarget("");setPinInput("");}} style={secondaryBtn}>CANCEL</button>
+          <button onClick={()=>{setShowPinPrompt(false);setChosenPin("");}} style={secondaryBtn}>CANCEL</button>
         </div>
-        <p style={{marginTop:20,fontSize:11,color:C.textLight,fontFamily:FONTS.mono,letterSpacing:1}}>
-          Lost your PIN? Ask the pool admin to reset it.
-        </p>
       </Card>
     </div>
   );
@@ -600,39 +575,14 @@ function PickForm({onSubmit,entries,started,results}){
       <Card style={{padding:"16px 20px"}}>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
           <Fld label="Bracket Name *" flex="1 1 160px">
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Drew's Domination"/>
+            <input value={name} onChange={e=>setName(e.target.value)}/>
           </Fld>
           <Fld label="Email *" flex="1 1 180px">
-            <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com"/>
+            <input value={email} onChange={e=>setEmail(e.target.value)}/>
           </Fld>
           <Fld label="Tiebreaker — total goals in both semis + final *" flex="0 0 300px">
-            <input value={tiebreak} onChange={e=>setTiebreak(e.target.value.replace(/\D/g,""))} placeholder="e.g. 18"/>
+            <input value={tiebreak} onChange={e=>setTiebreak(e.target.value.replace(/\D/g,""))}/>
           </Fld>
-          {!editTarget&&(
-            <Fld label="Choose a 4-digit PIN *" flex="0 0 160px">
-              <input value={chosenPin} onChange={e=>setChosenPin(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="e.g. 1234" maxLength={4} style={{fontFamily:FONTS.mono,letterSpacing:4,textAlign:"center"}}/>
-            </Fld>
-          )}
-          {entries.length>0&&!editTarget&&(
-            <Fld label="Edit existing entry" flex="0 0 180px">
-              <select onChange={handleSelectEdit} value="">
-                <option value="">Select name…</option>
-                {[...entries].sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
-                  <option key={e.name} value={e.name}>{e.name}</option>
-                ))}
-              </select>
-            </Fld>
-          )}
-          {editTarget&&(
-            <div style={{
-              padding:"8px 14px",background:C.navyBg,
-              border:`1px solid ${C.navyBorder}`,borderRadius:1,
-              fontSize:12,fontFamily:FONTS.body,color:C.navy,
-              letterSpacing:1,fontWeight:700,alignSelf:"flex-end",marginBottom:1,
-            }}>
-              ✏️ EDITING {editTarget.toUpperCase()}
-            </div>
-          )}
         </div>
       </Card>
 
@@ -649,10 +599,8 @@ function PickForm({onSubmit,entries,started,results}){
         {complete&&<span style={{fontFamily:FONTS.display,fontSize:13,color:C.green,letterSpacing:2}}>COMPLETE ✓</span>}
       </div>
 
-      <BracketVis picks={picks} onPick={doPick} results={results} interactive/>
-
-      <div style={{textAlign:"center",marginTop:8}}>
-        {started&&!editTarget&&(
+      <div style={{textAlign:"center",marginTop:8,marginBottom:12}}>
+        {started&&(
           <div style={{
             marginBottom:12,padding:"10px 20px",display:"inline-block",
             background:C.redBg,border:`1px solid ${C.redBorder}`,borderRadius:1,
@@ -661,17 +609,19 @@ function PickForm({onSubmit,entries,started,results}){
             ⚠ TOURNAMENT HAS STARTED — NO NEW ENTRIES ACCEPTED
           </div>
         )}
-        <button onClick={submit}
-          disabled={!complete||!name.trim()||!email.trim()||!tiebreak||saving||(started&&!editTarget)||(!editTarget&&chosenPin.length!==4)}
+        <button onClick={()=>setShowPinPrompt(true)}
+          disabled={!complete||!name.trim()||!email.trim()||!tiebreak||saving||started}
           style={{
             ...primaryBtn,
-            opacity:(!complete||!name.trim()||!email.trim()||!tiebreak||saving||(started&&!editTarget)||(!editTarget&&chosenPin.length!==4))?0.35:1,
-            cursor:(!complete||!name.trim()||!email.trim()||!tiebreak||saving||(started&&!editTarget)||(!editTarget&&chosenPin.length!==4))?"not-allowed":"pointer",
+            opacity:(!complete||!name.trim()||!email.trim()||!tiebreak||saving||started)?0.35:1,
+            cursor:(!complete||!name.trim()||!email.trim()||!tiebreak||saving||started)?"not-allowed":"pointer",
             fontSize:18,padding:"16px 72px",letterSpacing:"4px",
           }}>
-          {saving?"SAVING…":editTarget?"UPDATE PICKS ›":"LOCK IN BRACKET ›"}
+          {saving?"SAVING…":"LOCK IN BRACKET ›"}
         </button>
       </div>
+
+      <BracketVis picks={picks} onPick={doPick} results={results} interactive/>
     </div>
   );
 }
@@ -710,7 +660,7 @@ function BracketVis({picks,onPick,results,interactive}){
       }}>
         <span style={{display:"flex",alignItems:"center",gap:6}}>
           <TeamLogo team={team} size={18} style={{filter:lost&&!picked?"grayscale(1) opacity(0.35)":"none"}}/>
-          {seed!=null&&<span style={{color:C.gold,fontSize:9,fontWeight:800,fontFamily:FONTS.mono,minWidth:16}}>{seed}</span>}
+          {seed!=null&&seed<=4&&<span style={{color:C.gold,fontSize:9,fontWeight:800,fontFamily:FONTS.mono,minWidth:16}}>{seed}</span>}
           <span style={{textDecoration:lost&&!picked?"line-through":"none",opacity:lost&&!picked?0.4:1}}>{team}</span>
         </span>
         <span style={{display:"flex",alignItems:"center",gap:4}}>
@@ -812,6 +762,194 @@ function VCol({children,jc,ai,h,style={}}){
 }
 
 /* ═══════════════════════════════════════════════════
+   EDIT BRACKET (own tab)
+   ═══════════════════════════════════════════════════ */
+function EditBracket({onSubmit,entries,started,results}){
+  const[editTarget,setEditTarget]=useState("");
+  const[editMode,setEditMode]=useState(false);
+  const[pinInput,setPinInput]=useState("");
+  const[pinError,setPinError]=useState(false);
+  const[verifying,setVerifying]=useState(false);
+  const[entryData,setEntryData]=useState(null);
+
+  const handleSelectEdit=e=>{
+    const n=e.target.value;
+    setEditTarget(n);
+    if(n){setEditMode(true);setPinInput("");setPinError(false);setEntryData(null);}
+    else{setEditMode(false);setEntryData(null);}
+  };
+
+  const verifyPin=async()=>{
+    if(pinInput.length!==4){setPinError(true);return;}
+    setVerifying(true);
+    const entry=await verifyEntryPin(editTarget,pinInput);
+    setVerifying(false);
+    if(!entry){setPinError(true);return;}
+    setEntryData(entry);
+    setEditMode(false);
+    setPinError(false);
+  };
+
+  // Once verified, render PickForm in edit mode
+  if(entryData){
+    return <PickFormEdit entry={entryData} pin={pinInput} onSubmit={onSubmit} started={started} results={results}/>;
+  }
+
+  // PIN verification screen
+  if(editMode) return(
+    <div style={{animation:"fadeIn 0.2s ease"}}>
+      <Card style={{maxWidth:400,margin:"40px auto",padding:"40px 32px",textAlign:"center",borderTop:`4px solid ${C.navy}`}}>
+        <div style={{fontSize:40,marginBottom:16}}>🔐</div>
+        <div style={{fontFamily:FONTS.display,fontSize:30,color:C.navy,letterSpacing:"3px",marginBottom:6}}>ENTER YOUR PIN</div>
+        <p style={{color:C.textMid,fontSize:14,marginBottom:24,lineHeight:1.5}}>
+          Enter the 4-digit PIN you chose when you submitted{" "}
+          <strong style={{color:C.text}}>{editTarget}</strong>'s bracket.
+        </p>
+        <input
+          className="pin-input"
+          value={pinInput}
+          onChange={e=>{setPinInput(e.target.value.replace(/\D/g,"").slice(0,4));setPinError(false);}}
+          placeholder="····"
+          maxLength={4}
+          autoFocus
+          onKeyDown={e=>e.key==="Enter"&&pinInput.length===4&&verifyPin()}
+        />
+        {pinError&&(
+          <p style={{color:C.red,fontSize:13,fontWeight:700,letterSpacing:1,marginTop:8,marginBottom:0}}>
+            Incorrect PIN — try again.
+          </p>
+        )}
+        <div style={{display:"flex",gap:8,justifyContent:"center",marginTop:20}}>
+          <button onClick={verifyPin} disabled={pinInput.length!==4||verifying} style={{
+            ...navyBtn,
+            opacity:pinInput.length!==4||verifying?0.4:1,
+            cursor:pinInput.length!==4||verifying?"not-allowed":"pointer",
+          }}>
+            {verifying?"CHECKING…":"UNLOCK PICKS"}
+          </button>
+          <button onClick={()=>{setEditMode(false);setEditTarget("");setPinInput("");}} style={secondaryBtn}>CANCEL</button>
+        </div>
+        <p style={{marginTop:20,fontSize:11,color:C.textLight,fontFamily:FONTS.mono,letterSpacing:1}}>
+          Lost your PIN? Ask the pool admin to reset it.
+        </p>
+      </Card>
+    </div>
+  );
+
+  // Entry selection screen
+  if(!entries.length) return(
+    <Card style={{textAlign:"center",padding:60}}>
+      <div style={{fontFamily:FONTS.display,fontSize:32,color:C.navy,letterSpacing:"4px"}}>NO ENTRIES YET</div>
+      <div style={{color:C.textLight,marginTop:8}}>Submit a bracket first!</div>
+    </Card>
+  );
+
+  return(
+    <Card style={{maxWidth:500,margin:"40px auto",padding:"40px 32px",textAlign:"center",borderTop:`4px solid ${C.navy}`}}>
+      <div style={{fontSize:40,marginBottom:16}}>✏️</div>
+      <div style={{fontFamily:FONTS.display,fontSize:30,color:C.navy,letterSpacing:"3px",marginBottom:6}}>EDIT YOUR BRACKET</div>
+      <p style={{color:C.textMid,fontSize:14,marginBottom:24,lineHeight:1.5}}>
+        Select your bracket name to edit your picks.
+      </p>
+      <Fld label="Select your bracket" flex="1">
+        <select onChange={handleSelectEdit} value={editTarget} style={{maxWidth:300,margin:"0 auto"}}>
+          <option value="">Select name…</option>
+          {[...entries].sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
+            <option key={e.name} value={e.name}>{e.name}</option>
+          ))}
+        </select>
+      </Fld>
+    </Card>
+  );
+}
+
+/* ── Edit mode PickForm (pre-loaded with entry data) ── */
+function PickFormEdit({entry,pin,onSubmit,started,results}){
+  const[name]=useState(entry.name);
+  const[email,setEmail]=useState(entry.email||"");
+  const[tiebreak,setTiebreak]=useState(entry.tiebreak?String(entry.tiebreak):"");
+  const[picks,setPicks]=useState(entry.picks);
+  const[submitted,setSubmitted]=useState(false);
+  const[saving,setSaving]=useState(false);
+
+  const doPick=(g,team)=>setPicks(cascade({...picks,[g]:team}));
+
+  const submit=async()=>{
+    if(!email.trim())return alert("Please enter your email.");
+    if(!isComplete(picks))return alert("Please fill out all 15 picks.");
+    if(!tiebreak)return alert("Please enter a tiebreaker.");
+    setSaving(true);
+    await onSubmit({name,email:email.trim(),tiebreak:Number(tiebreak),picks,submittedAt:new Date().toISOString(),pin});
+    setSaving(false);
+    setSubmitted(true);
+  };
+
+  if(submitted) return(
+    <Card style={{textAlign:"center",padding:"60px 24px",borderTop:`4px solid ${C.navy}`}}>
+      <div style={{fontSize:56,marginBottom:16}}>🎉</div>
+      <div style={{fontFamily:FONTS.display,fontSize:52,color:C.navy,letterSpacing:"4px",marginBottom:8}}>PICKS UPDATED</div>
+      <p style={{color:C.textMid,fontSize:16,marginBottom:4}}>
+        <strong style={{color:C.text}}>{name}</strong>'s picks are saved.
+      </p>
+    </Card>
+  );
+
+  const cnt=Object.values(picks).filter(Boolean).length;
+  const complete=isComplete(picks);
+
+  return(
+    <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <Card style={{padding:"16px 20px"}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{
+            padding:"8px 14px",background:C.navyBg,
+            border:`1px solid ${C.navyBorder}`,borderRadius:1,
+            fontSize:12,fontFamily:FONTS.body,color:C.navy,
+            letterSpacing:1,fontWeight:700,
+          }}>
+            ✏️ EDITING {name.toUpperCase()}
+          </div>
+          <Fld label="Email *" flex="1 1 180px">
+            <input value={email} onChange={e=>setEmail(e.target.value)}/>
+          </Fld>
+          <Fld label="Tiebreaker — total goals in both semis + final *" flex="0 0 300px">
+            <input value={tiebreak} onChange={e=>setTiebreak(e.target.value.replace(/\D/g,""))}/>
+          </Fld>
+        </div>
+      </Card>
+
+      {/* Progress bar */}
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{flex:1,height:6,background:C.bgInset,borderRadius:1,overflow:"hidden",border:`1px solid ${C.border}`}}>
+          <div style={{
+            width:`${(cnt/15)*100}%`,height:"100%",
+            background:complete?C.green:C.red,
+            borderRadius:1,transition:"width 0.3s",
+          }}/>
+        </div>
+        <span style={{fontFamily:FONTS.mono,fontSize:13,color:complete?C.green:C.red,minWidth:40,fontWeight:700}}>{cnt}/15</span>
+        {complete&&<span style={{fontFamily:FONTS.display,fontSize:13,color:C.green,letterSpacing:2}}>COMPLETE ✓</span>}
+      </div>
+
+      <div style={{textAlign:"center",marginTop:8,marginBottom:12}}>
+        <button onClick={submit}
+          disabled={!complete||!email.trim()||!tiebreak||saving}
+          style={{
+            ...primaryBtn,
+            opacity:(!complete||!email.trim()||!tiebreak||saving)?0.35:1,
+            cursor:(!complete||!email.trim()||!tiebreak||saving)?"not-allowed":"pointer",
+            fontSize:18,padding:"16px 72px",letterSpacing:"4px",
+          }}>
+          {saving?"SAVING…":"UPDATE PICKS ›"}
+        </button>
+      </div>
+
+      <BracketVis picks={picks} onPick={doPick} results={results} interactive/>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════
    STANDINGS
    ═══════════════════════════════════════════════════ */
 function Standings({entries,results}){
@@ -875,13 +1013,9 @@ function Standings({entries,results}){
       <SectionHeader>ALL ENTRIES ({entries.length})</SectionHeader>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:10}}>
         {[...entries].sort((a,b)=>a.name.localeCompare(b.name)).map(e=>(
-          <Card key={e.name} style={{padding:"16px 18px",cursor:"pointer"}} onClick={()=>setViewBracket(e.name)}>
-            <div style={{fontFamily:FONTS.display,fontSize:20,color:C.navy,letterSpacing:1,marginBottom:8,textDecoration:"underline",textUnderlineOffset:2}}>{e.name}</div>
-            <div style={{fontSize:13,color:C.textMid,display:"flex",alignItems:"center",gap:6}}>
-              <TeamLogo team={e.picks[15]} size={16}/>
-              <span>🏆 <strong style={{color:C.red}}>{e.picks[15]}</strong></span>
-            </div>
-            <div style={{fontFamily:FONTS.mono,fontSize:11,color:C.textLight,marginTop:4}}>TB: {e.tiebreak} GOALS</div>
+          <Card key={e.name} style={{padding:"16px 18px"}}>
+            <div style={{fontFamily:FONTS.display,fontSize:20,color:C.navy,letterSpacing:1}}>{e.name}</div>
+            {e.submittedAt&&<div style={{fontFamily:FONTS.mono,fontSize:11,color:C.textLight,marginTop:4}}>{new Date(e.submittedAt).toLocaleDateString("en-US",{month:"short",day:"numeric"})} · {new Date(e.submittedAt).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>}
           </Card>
         ))}
       </div>
@@ -980,18 +1114,18 @@ function Standings({entries,results}){
    ═══════════════════════════════════════════════════ */
 function Rules(){
   const rules=[
-    {title:"ENTRY FEE",text:"$10 per bracket. Venmo @drew-pynchon to complete your entry. Your entry is not official until payment is received."},
-    {title:"HOW TO PLAY",text:"Pick the winner of all 15 tournament games. Fill out the bracket by clicking on the team you think will win each matchup. Your later-round picks cascade automatically."},
+    {title:"BUY IN",text:"$10 per bracket. Venmo @drew-pynchon to complete your entry. Your entry is not official until payment is received."},
+    {title:"PAYOUTS",text:"Prizes for 1st, 2nd, and 3rd place. Exact amounts will be announced once the total pot is determined."},
+    {title:"BRACKETS DUE",text:"Thursday, March 27 at 2:00 PM (prior to first game)."},
     {title:"SCORING",items:[
-      "First Round (8 games): 1 point each",
-      "Quarterfinals (4 games): 2 points each",
-      "Semifinals (2 games): 4 points each",
-      "Championship (1 game): 8 points",
+      "First Round: 1 point",
+      "Second Round: 2 points",
+      "Semi-finals: 4 points",
+      "Championship: 8 points",
       `Maximum possible: ${MAX_PTS} points`,
     ]},
-    {title:"TIEBREAKER",text:"Predict the total combined goals scored across both semifinal games and the championship game (3 games total). Closest to the actual total wins the tiebreaker."},
-    {title:"EDITING YOUR PICKS",text:"When you submit your bracket, you choose a 4-digit PIN. Use this PIN to edit your picks anytime before the tournament starts."},
-    {title:"PRIZES",text:"Winner takes all! In the event of a tie, the tiebreaker determines the winner. If still tied, the pot is split."},
+    {title:"TIEBREAKER",text:"Total combined goals scored in semi-finals and championship. Whoever guesses closest wins the tiebreaker."},
+    {title:"EDITING YOUR PICKS",text:"When you submit your bracket, you'll choose a 4-digit PIN. Use this PIN to edit your picks anytime before the deadline."},
   ];
   return(
     <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:700,margin:"0 auto"}}>
