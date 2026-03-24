@@ -1,0 +1,138 @@
+/* ═══════════════════════════════════════════════════
+   RETRO HOCKEY PROGRAM — GLOBAL STYLES
+   ═══════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Page background: parchment with faint horizontal rules ── */
+.program-bg {
+  background-color: #ede8dc;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 23px,
+      rgba(0, 0, 0, 0.022) 23px,
+      rgba(0, 0, 0, 0.022) 24px
+    );
+}
+
+/* ── Cards: warm white with red top rule ── */
+.retro-card {
+  background: #faf7f1;
+  border: 1px solid #c4b89a;
+  border-top: 3px solid #cc2020;
+  border-radius: 1px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 4px 14px rgba(0, 0, 0, 0.06);
+  animation: fadeIn 0.2s ease;
+}
+
+/* ── Team buttons ── */
+.team-btn {
+  transition: filter 0.1s ease, box-shadow 0.1s ease;
+  cursor: pointer;
+}
+.team-btn:hover {
+  filter: brightness(0.93);
+  box-shadow: inset 0 0 0 2px #cc2020;
+}
+.team-btn:active {
+  filter: brightness(0.88);
+}
+
+/* ── Inputs & selects ── */
+input, select {
+  background: #f0ebe0 !important;
+  color: #12100e !important;
+  border: 1px solid #c4b89a !important;
+  border-bottom: 2px solid #a09070 !important;
+  border-radius: 1px !important;
+  padding: 9px 12px !important;
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  outline: none !important;
+  width: 100% !important;
+  transition: border-color 0.15s, box-shadow 0.15s !important;
+}
+input:focus, select:focus {
+  border-color: #cc2020 !important;
+  border-bottom-color: #cc2020 !important;
+  box-shadow: 0 2px 0 rgba(204, 32, 32, 0.18) !important;
+}
+input::placeholder {
+  color: #9a7a62 !important;
+}
+
+/* ── PIN input ── */
+.pin-input {
+  font-family: 'Share Tech Mono', monospace !important;
+  font-size: 30px !important;
+  letter-spacing: 14px !important;
+  text-align: center !important;
+  color: #cc2020 !important;
+  background: #faf7f1 !important;
+  border: 2px solid #cc2020 !important;
+  border-bottom: 2px solid #cc2020 !important;
+  padding: 14px !important;
+}
+.pin-input:focus {
+  box-shadow: 0 0 0 3px rgba(204, 32, 32, 0.12) !important;
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Section rule divider ── */
+.section-rule {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-rule::after {
+  content: '';
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, #1a2a4a, transparent);
+}
+
+/* ── Live badge ── */
+.live-badge {
+  background: #cc2020;
+  color: #fff;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  font-family: 'Share Tech Mono', monospace;
+  animation: pulse 1.5s infinite;
+  border-radius: 1px;
+}
+
+/* ── Table row hover ── */
+tbody tr:hover td {
+  background: rgba(204, 32, 32, 0.04) !important;
+  cursor: pointer;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #ede8dc; }
+::-webkit-scrollbar-thumb { background: #b4a888; border-radius: 1px; }
